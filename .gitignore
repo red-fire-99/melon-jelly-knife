@@ -1,0 +1,46 @@
+# ===== 密钥与本地配置(绝不可提交) =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+*.keystore
+secrets.*
+credentials.*
+
+# ===== 依赖 =====
+node_modules/
+bower_components/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ===== 构建与缓存产物 =====
+dist/
+build/
+out/
+*.log
+npm-debug.log*
+.cache/
+.tmp/
+
+# ===== 编辑器 =====
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sublime-*
+*.swp
+*.swo
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== 测试/临时产物 =====
+_smoke.js
+_profile/
+*.local.html

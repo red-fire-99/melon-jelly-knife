@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Melon Jelly Knife</title>
+<style>
+  :root{
+    --ink:#3b2b3a;
+    --ink-soft:#7c6a78;
+    --card:rgba(255,255,255,.72);
+    --stroke:rgba(255,255,255,.9);
+    --pink:#ff6b9d;
+    --orange:#ff9a3c;
+    --mint:#4ecdc4;
+    --shadow:0 10px 30px rgba(120,80,110,.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;overflow:hidden}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    color:var(--ink);
+    background:#ffe9d6;
+    user-select:none;
+    touch-action:none;
+  }
+  #stage{position:fixed;inset:0}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;padding:18px;display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .pill{
+    pointer-events:auto;
+    background:var(--card);
+    border:1.5px solid var(--stroke);
+    border-radius:999px;
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    padding:9px 16px;
+    display:flex;align-items:center;gap:10px;
+    font-weight:700;letter-spacing:.02em;
+  }
+  .label{font-size:11px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.12em}
+  #score{font-size:26px;line-height:1;font-variant-numeric:tabular-nums;min-width:2ch;text-align:center}
+  #best{font-size:14px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .divider{width:1.5px;height:22px;background:rgba(120,80,110,.18);border-radius:2px}
+
+  .hearts{display:flex;gap:6px}
+  .heart{
+    width:20px;height:20px;border-radius:50%;
+    background:linear-gradient(160deg,#ff8fb1,#ff4d6d);
+    box-shadow:0 3px 8px rgba(255,77,109,.4);
+    transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .25s,filter .25s;
+  }
+  .heart.lost{background:rgba(160,140,155,.28);box-shadow:none;transform:scale(.7);filter:grayscale(1)}
+
+  .iconbtn{
+    pointer-events:auto;cursor:pointer;border:none;
+    width:40px;height:40px;border-radius:50%;
+    background:var(--card);border:1.5px solid var(--stroke);
+    box-shadow:var(--shadow);backdrop-filter:blur(10px);
+    display:grid;place-items:center;font-size:17px;color:var(--ink);
+    transition:transform .15s ease;
+  }
+  .iconbtn:hover{transform:translateY(-2px) scale(1.06)}
+  .iconbtn:active{transform:scale(.94)}
+
+  /* combo 提示 */
+  #combo{
+    position:fixed;left:50%;top:96px;transform:translate(-50%,0) scale(.6);
+    font-size:30px;font-weight:900;letter-spacing:.06em;
+    color:#fff;text-shadow:0 3px 0 rgba(255,107,157,.9),0 10px 24px rgba(255,107,157,.55);
+    opacity:0;transition:opacity .18s,transform .3s cubic-bezier(.34,1.56,.64,1);
+    pointer-events:none;font-style:italic;
+  }
+  #combo.show{opacity:1;transform:translate(-50%,0) scale(1)}
+
+  /* ---------- 遮罩面板 ---------- */
+  #overlay{
+    position:fixed;inset:0;display:grid;place-items:center;
+    background:radial-gradient(120% 100% at 50% 30%,rgba(255,255,255,.55),rgba(255,233,214,.85));
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    opacity:0;pointer-events:none;transition:opacity .35s ease;
+  }
+  #overlay.show{opacity:1;pointer-events:auto}
+  .panel{
+    text-align:center;padding:38px 44px;max-width:min(92vw,460px);
+    background:rgba(255,255,255,.86);
+    border:1.5px solid #fff;border-radius:28px;
+    box-shadow:0 24px 60px rgba(150,100,130,.25);
+    animation:pop .45s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes pop{from{transform:scale(.86) translateY(14px);opacity:0}to{transform:none;opacity:1}}
+  .title{
+    margin:0 0 6px;font-size:clamp(30px,7vw,46px);font-weight:900;letter-spacing:-.02em;line-height:1.05;
+    background:linear-gradient(100deg,#ff5f7e,#ff9a3c 45%,#4ecdc4);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .sub{margin:0 0 22px;font-size:14px;color:var(--ink-soft);line-height:1.7}
+  .btn{
+    cursor:pointer;border:none;font:inherit;font-weight:800;font-size:17px;letter-spacing:.04em;
+    padding:14px 40px;border-radius:999px;color:#fff;
+    background:linear-gradient(100deg,#ff6b9d,#ff9a3c);
+    box-shadow:0 12px 26px rgba(255,107,157,.42);
+    transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s,filter .18s;
+  }
+  .btn:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 18px 34px rgba(255,107,157,.5)}
+  .btn:active{transform:translateY(0) scale(.97);filter:saturate(1.15)}
+  .stats{display:flex;justify-content:center;gap:14px;margin:20px 0 24px}
+  .stat{
+    flex:1;padding:14px 8px;border-radius:18px;background:rgba(255,233,214,.7);
+    border:1.5px solid rgba(255,255,255,.9);
+  }
+  .stat b{display:block;font-size:28px;font-variant-numeric:tabular-nums;line-height:1.1}
+  .stat span{font-size:11px;font-weight:800;color:var(--ink-soft);letter-spacing:.1em;text-transform:uppercase}
+  .tips{margin:20px 0 0;font-size:12px;color:var(--ink-soft);line-height:1.9}
+  .kbd{
+    display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;font-weight:800;
+    background:rgba(120,80,110,.1);border:1px solid rgba(120,80,110,.16);
+  }
+  .hidden{display:none !important}
+
+  /* ---------- 开关 ---------- */
+  .switches{display:flex;flex-direction:column;gap:9px;margin:16px 0 2px;text-align:left}
+  .sw{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:700;color:var(--ink)}
+  .sw input{position:absolute;opacity:0;width:0;height:0}
+  .sw .track{flex:0 0 auto;width:42px;height:24px;border-radius:999px;background:rgba(120,80,110,.22);
+             position:relative;transition:background .2s}
+  .sw .knob{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;
+            box-shadow:0 2px 6px rgba(0,0,0,.22);transition:transform .22s cubic-bezier(.34,1.56,.64,1)}
+  .sw input:checked + .track{background:linear-gradient(100deg,#ff6b9d,#ff9a3c)}
+  .sw input:checked + .track .knob{transform:translateX(18px)}
+  .sw .hint{display:block;font-weight:600;font-size:11px;color:var(--ink-soft);margin-top:1px}
+  .badge{font-size:11px;padding:6px 12px;background:linear-gradient(100deg,#ff6b9d,#ff9a3c);
+         color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(255,107,157,.4)}
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+</div>
+
+<div id="hud">
+  <div class="row">
+    <div class="pill">
+      <span class="label">得分</span>
+      <span id="score">0</span>
+      <span class="divider"></span>
+      <span id="best">最佳 0</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <div class="pill" style="padding:9px 14px"><div class="hearts" id="hearts"></div></div>
+      <div class="pill badge hidden" id="badgeEnh">⚡ 增强</div>
+      <button class="iconbtn" id="btnSound" title="音效">🔊</button>
+      <button class="iconbtn" id="btnPause" title="暂停">⏸</button>
+    </div>
+  </div>
+  <div style="flex:1"></div>
+  <div class="row" style="justify-content:flex-start">
+    <div class="pill hidden" id="fpsPill" style="padding:6px 13px;font-size:12px;font-variant-numeric:tabular-nums">
+      <b id="fpsVal">60</b> FPS · <span id="fpsLv">L2</span> · <span id="fpsEnt">0</span> 实体
+    </div>
+  </div>
+</div>
+
+<div id="combo"></div>
+
+<div id="overlay" class="show">
+  <!-- 开始面板 -->
+  <div class="panel" id="panelStart">
+    <h1 class="title">Melon<br>Jelly Knife</h1>
+    <p class="sub">按住并拖动，挥刀切开飞起的西瓜与果冻</p>
+    <div class="switches">
+      <label class="sw"><input type="checkbox" data-cfg="enhanced"><span class="track"><span class="knob"></span></span>
+        <span>打击感增强包<span class="hint">顿帧 · 慢放 · 冲击 · 刀光（默认关闭）</span></span></label>
+      <label class="sw"><input type="checkbox" data-cfg="sprites" checked><span class="track"><span class="knob"></span></span>
+        <span>精灵加速渲染<span class="hint">关闭 = 原版逐帧绘制，用于对比性能</span></span></label>
+      <label class="sw"><input type="checkbox" data-cfg="fps"><span class="track"><span class="knob"></span></span>
+        <span>显示帧率<span class="hint">右上角实时 FPS / 画质档 / 实体数</span></span></label>
+    </div>
+    <button class="btn" id="btnStart" style="margin-top:22px">开 始 切</button>
+    <p class="tips">
+      按住鼠标 / 手指拖动即可挥刀<br>
+      一刀切中 3 个以上触发 <b>COMBO</b> 加分<br>
+      <span class="kbd">空格</span> 暂停 · 小心别切到炸弹 💣
+    </p>
+  </div>
+
+  <!-- 暂停面板 -->
+  <div class="panel hidden" id="panelPause">
+    <h1 class="title" style="font-size:34px">已暂停</h1>
+    <p class="sub">歇口气，果冻还在等你</p>
+    <div class="switches">
+      <label class="sw"><input type="checkbox" data-cfg="enhanced"><span class="track"><span class="knob"></span></span>
+        <span>打击感增强包<span class="hint">可随时切换</span></span></label>
+      <label class="sw"><input type="checkbox" data-cfg="fps"><span class="track"><span class="knob"></span></span>
+        <span>显示帧率</span></label>
+    </div>
+    <button class="btn" id="btnResume" style="margin-top:22px">继 续</button>
+    <p class="tips">按 <span class="kbd">空格</span> 或 <span class="kbd">Esc</span> 继续</p>
+  </div>
+
+  <!-- 结束面板 -->
+  <div class="panel hidden" id="panelOver">
+    <h1 class="title" style="font-size:34px" id="overTitle">刀 钝 了</h1>
+    <p class="sub" id="overSub">再来一次？</p>
+    <div class="stats">
+      <div class="stat"><b id="fScore">0</b><span>本局得分</span></div>
+      <div class="stat"><b id="fBest">0</b><span>历史最佳</span></div>
+      <div class="stat"><b id="fCombo">0</b><span>最高连击</span></div>
+    </div>
+    <button class="btn" id="btnRetry">再 来 一 刀</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   Melon Jelly Knife — 单文件 Canvas 切水果复刻
+   模块划分:
+     1. 常量与配置      2. 音频合成     3. 工具函数
+     4. 水果/果冻/炸弹定义                5. 生成器(抛物线发射)
+     6. 刀锋轨迹(拖尾 + 线段相交检测)     7. 粒子系统
+     8. 主循环(update / draw)            9. 状态机与 HUD
+   ========================================================================= */
+
+/* ---------------- 1. 常量与配置 ---------------- */
+const TAU = Math.PI * 2;
+const cv  = document.getElementById('game');
+const ctx = cv.getContext('2d', { alpha: false });
+
+let W = 0, H = 0, DPR = 1, G = 0.36;           // G: 重力(px / frame²)
+const S = { MENU: 0, PLAY: 1, PAUSE: 2, OVER: 3 };
+
+/* =========================================================================
+   [开关] 功能开关 —— 默认即为「上一版」(classic)
+     enhanced    打击感增强包(顿帧/慢放/全屏冲击/刀光/三层汁液/三层音效)
+     sprites     精灵预渲染(纯性能; 关掉 = 100% 原版逐帧绘制路径)
+     autoQuality 帧率自适应降档(纯性能)
+     fps         右上角帧率 / 实体数调试显示
+
+   三种开启方式(任选):
+     1) 开始 / 暂停面板上的开关
+     2) URL 参数    index.html?enhanced=1&fps=1&sprites=0
+     3) 运行时 API  window.MJK.set({ enhanced: true })
+   设置写入 localStorage, 下次自动沿用。
+   ========================================================================= */
+const CONFIG = {
+  enhanced:    false,   // ← 默认关闭 = 上一版手感
+  sprites:     true,
+  autoQuality: true,
+  fps:         false
+};
+(function loadConfig(){
+  try{
+    const q = new URLSearchParams(location.search);
+    for(const k in CONFIG) if(q.has(k)) CONFIG[k] = !(q.get(k) === '0' || q.get(k) === 'false');
+    const saved = localStorage.getItem('mjk_config');
+    if(saved){
+      const o = JSON.parse(saved);
+      for(const k in CONFIG) if(k in o && !q.has(k)) CONFIG[k] = !!o[k];
+    }
+  }catch(e){}
+})();
+function saveConfig(){ try{ localStorage.setItem('mjk_config', JSON.stringify(CONFIG)); }catch(e){} }
+
+/* 画质档位(由帧率监测自动上下调) */
+const PERF = { level: 2, dprCap: 2, partMul: 1, glow: true };
+const Q_LEVELS = [
+  { dprCap: 1,   partMul: .55, glow: false },   // L0 最低
+  { dprCap: 1.5, partMul: .8,  glow: true  },   // L1
+  { dprCap: 2,   partMul: 1,   glow: true  }    // L2 最高
+];
+function setLevel(l){
+  l = clamp(l, 0, 2);
+  if(l === PERF.level) return;
+  PERF.level = l;
+  PERF.dprCap = Q_LEVELS[l].dprCap;
+  PERF.partMul = Q_LEVELS[l].partMul;
+  PERF.glow = Q_LEVELS[l].glow;
+  resize();                                     // DPR 变了 → 重建画布与精灵
+}
+
+/* ===== [FEEL-A] 打击感参数(仅 enhanced 开启时生效, 集中调节) ===== */
+const FEEL = {
+  hitStopMs: 60,   // 命中顿帧(ms): 冻结画面制造冲击
+  slowMs: 150,     // 顿帧后慢放时长(ms)
+  slowScale: .32,  // 慢放倍率
+  shake: 10,       // 震动强度
+  punch: .024,     // 全屏缩放冲击
+  pop: .40,        // 两半弹出缩放
+  flash: .20       // 命中白闪强度
+};
+let hitStop = 0, slowT = 0, timeScale = 1;   // 顿帧 / 慢放状态
+let punch = 0, shakeAng = 0;                 // 全屏冲击 / 震动方向
+let curFps = 60;                             // 最近一次观测窗口的平均帧率
+
+/* 水果类型表 —— skin:外皮  hi:高光  flesh:果肉 */
+const TYPES = {
+  melon:  { r: 54, skin:'#2f7d3a', hi:'#5fbf5a', flesh:'#ff4d6d', seeds:11, stripe:true,  value:3, juice:'#ff4d6d' },
+  dragon: { r: 46, skin:'#e0404f', hi:'#ff7a86', flesh:'#fdeaf0', seeds:20, scale:true,   value:3, juice:'#ff8fa8' },
+  orange: { r: 40, skin:'#f08c1e', hi:'#ffbb5c', flesh:'#ffc46b', seeds:0,  segments:true,value:1, juice:'#ffa63d' },
+  lemon:  { r: 36, skin:'#f2c53d', hi:'#ffe483', flesh:'#fff3b0', seeds:0,  segments:true,value:1, juice:'#ffe066' },
+  kiwi:   { r: 37, skin:'#8d6e63', hi:'#b99487', flesh:'#9ccc65', seeds:16, fuzzy:true,   value:1, juice:'#a5d66a' },
+  jelly:  { r: 42, skin:'#ff6b9d', hi:'#ffb3d1', flesh:'#ffc2dc', seeds:0,  jelly:true,   value:2, juice:'#ff7fb0' },
+  bomb:   { r: 38, skin:'#2b2b33', hi:'#6a6a78', flesh:'#111',    seeds:0,  bomb:true,    value:0, juice:'#ffb347' }
+};
+const SPAWN_POOL = ['melon','melon','orange','lemon','kiwi','dragon','jelly','jelly'];
+
+/* ---------------- 2. 音频合成 (WebAudio, 无外部资源) ---------------- */
+const Sound = {
+  ac: null, on: true, master: null, noiseBuf: null,
+  init(){
+    if(this.ac) return;
+    try{
+      this.ac = new (window.AudioContext||window.webkitAudioContext)();
+      this.master = this.ac.createGain();
+      this.master.gain.value = .9;
+      this.master.connect(this.ac.destination);
+      this.buildNoise();
+    }catch(e){}
+  },
+  /* [OPT-B] 噪声 buffer 只生成一次(1s)后复用。
+     旧实现每命中一次就现算 ~4000 个样本并新建 AudioBuffer —— 是主线程尖峰卡顿的主要来源。 */
+  buildNoise(){
+    const sr = this.ac.sampleRate | 0;
+    const buf = this.ac.createBuffer(1, sr, sr), d = buf.getChannelData(0);
+    for(let i=0;i<sr;i++) d[i] = Math.random()*2 - 1;
+    this.noiseBuf = buf;
+  },
+  env(node, vol, dur, atk){
+    const t = this.ac.currentTime, g = this.ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + (atk || .005));
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    node.connect(g); g.connect(this.master);
+    return g;
+  },
+  tone(freq, dur, type, vol, slide){
+    if(!this.on || !this.ac) return;
+    const t = this.ac.currentTime;
+    const o = this.ac.createOscillator();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, slide), t + dur);
+    this.env(o, vol == null ? .18 : vol, dur);
+    o.start(t); o.stop(t + dur + .03);
+  },
+  noise(dur, vol, cutoff){
+    if(!this.on || !this.ac || !this.noiseBuf) return;
+    const src = this.ac.createBufferSource();
+    src.buffer = this.noiseBuf; src.loop = true;
+    const f = this.ac.createBiquadFilter();
+    f.type = 'bandpass'; f.frequency.value = cutoff || 1800; f.Q.value = .7;
+    src.connect(f);
+    this.env(f, vol == null ? .2 : vol, dur, .003);
+    src.start(); src.stop(this.ac.currentTime + dur + .03);
+  },
+  /* [FEEL-B] 低频 "thump": 频率快速下坠, 提供重量感(duang 的"咚") */
+  thump(freq, dur, vol){
+    if(!this.on || !this.ac) return;
+    const t = this.ac.currentTime;
+    const o = this.ac.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq * 2.5, t);
+    o.frequency.exponentialRampToValueAtTime(freq * .5, t + dur);
+    this.env(o, vol, dur, .002);
+    o.start(t); o.stop(t + dur + .03);
+  },
+  /* 三层叠音: 低频冲击 + 高频脆响 + 汁液噪声 = 清脆有力的 "duang" */
+  slice(){
+    const v = .92 + Math.random() * .18;
+    this.thump(150 * v, .17, .34);
+    this.tone(1500 * v, .075, 'triangle', .13, 620);
+    this.noise(.075, .11, 2600);
+  },
+  jelly(){
+    this.thump(215, .21, .27);
+    this.tone(760, .16, 'sine', .14, 300);
+    this.tone(1180, .10, 'triangle', .08, 520);
+    this.noise(.06, .07, 1400);
+  },
+  /* 上一版(classic)的单层音效: 增强包关闭时使用 */
+  sliceClassic(){ this.tone(880 + Math.random()*260, .16, 'triangle', .16, 300); this.noise(.09, .12, 1100); },
+  jellyClassic(){ this.tone(520, .22, 'sine', .2, 240); this.tone(780, .18, 'sine', .1, 380); },
+  combo(n){ this.tone(520 + n*95, .3, 'square', .12, 900 + n*120); this.tone(1040 + n*95, .16, 'sine', .07, 1500); },
+  miss(){ this.tone(220, .3, 'sawtooth', .1, 90); },
+  boom(){ this.noise(.7, .5, 700); this.thump(70, .6, .4); this.tone(90, .6, 'sawtooth', .22, 40); },
+  ui(){ this.tone(660, .1, 'sine', .12, 880); }
+};
+
+/* ---------------- 3. 工具函数 ---------------- */
+const rnd  = (a, b) => a + Math.random() * (b - a);
+const irnd = (a, b) => Math.floor(rnd(a, b + 1));
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const pick = arr => arr[irnd(0, arr.length - 1)];
+
+/* [OPT-C] 交换删除: 把末元素搬到空位再 pop, O(1)。
+   旧代码在循环里用 splice, 每次删除都要搬移整个数组尾部。 */
+function removeAt(arr, i){
+  const last = arr.length - 1;
+  if(i !== last) arr[i] = arr[last];
+  arr.pop();
+}
+
+/* [OPT-D] 对象池: 水果/半块/粒子/圆环/文字全部复用。
+   旧代码每次切水果都 new 出 ~25 个字面量对象, 高连击时触发频繁 GC 造成掉帧。 */
+const POOL = { fruit:[], half:[], part:[], ring:[], text:[], slash:[] };
+const POOL_CAP = 260;
+function alloc(kind, make){ const p = POOL[kind]; return p.length ? p.pop() : make(); }
+function release(kind, o){ const p = POOL[kind]; if(p.length < POOL_CAP) p.push(o); }
+
+/* 点到线段距离的平方 —— 刀锋切割判定核心 */
+function segPointDist2(ax, ay, bx, by, px, py){
+  const dx = bx - ax, dy = by - ay;
+  const L2 = dx*dx + dy*dy;
+  let t = L2 ? ((px-ax)*dx + (py-ay)*dy) / L2 : 0;
+  t = clamp(t, 0, 1);
+  const cx = ax + dx*t, cy = ay + dy*t;
+  return (px-cx)*(px-cx) + (py-cy)*(py-cy);
+}
+
+/* ---------------- 全局状态 ---------------- */
+let state = S.MENU;
+let score = 0, best = 0, lives = 3, maxCombo = 0;
+try{ best = parseInt(localStorage.getItem('mjk_best') || '0', 10) || 0; }catch(e){}
+
+const fruits = [];   // 完整水果
+const halves = [];   // 被切开的两半
+const parts  = [];   // 果汁/碎片粒子
+const texts  = [];   // 浮动文字
+const rings  = [];   // 冲击波圆环
+const slashes= [];   // [FEEL] 斩击刀光
+const bg     = [];   // 背景装饰漂浮物
+
+let spawnTimer = 0, elapsed = 0, shake = 0, flash = 0;
+let hudDirty = true;                    // [OPT-E] HUD 脏标记, 避免每帧写 DOM
+const blade = { on:false, combo:0, comboTimer:0, flash:0 };   // flash: 命中时刀锋增亮
+
+/* ---------------- 尺寸自适应 ---------------- */
+function resize(){
+  DPR = Math.min(PERF.dprCap, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width  = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  G = H * 0.00045;                      // 重力随屏高缩放, 保证手感一致
+  buildSprites();                       // 半径随屏幕缩放 → 重建精灵
+  buildBgLayer();
+}
+window.addEventListener('resize', resize);
+
+for(let i=0;i<16;i++){
+  bg.push({ x:Math.random(), y:Math.random(), r:rnd(30,110), a:rnd(.05,.14),
+            v:rnd(.008,.03), hue: pick(['#ffd9a0','#ffb3c8','#b8f0e6','#fff2b8']) });
+}
+
+/* =========================================================================
+   [OPT-F] 精灵预渲染 —— 最大的性能瓶颈修复
+   旧实现每帧为每个水果/半块调用 drawBody(), 其中包含:
+     · createRadialGradient × 2        → 每帧新建渐变对象
+     · 猕猴桃 40 个随机绒点 / 柑橘 34 个油点 → 每帧 74 次 Math.random + arc
+     · 6 条西瓜纹 quadraticCurveTo、7 片火龙果鳞片、独立 clip
+   满屏 6 个水果 + 10 个半块时, 每帧上千次路径构建 + 数百次随机数。
+   改为: 每种水果 × 2 个变体, 只在 resize 时绘制一次到离屏 canvas;
+   运行期一律 drawImage, 绘制成本从 O(纹素数) 降到 O(1)。
+   ========================================================================= */
+const SPR = {};                       // SPR[type] = [精灵A, 精灵B]
+const FLESH = {};                     // [OPT-F2] FLESH[type] = 切面果肉渐变(复用)
+const DOT = {};                       // DOT[color] = 粒子圆点精灵
+const BGDOT = {};                     // BGDOT[hue] = 背景装饰圆精灵
+let sprScale = 1;                     // 半径缩放系数(随屏幕尺寸)
+
+function makeCanvas(w, h){
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
+  return c;
+}
+
+function buildSprites(){
+  sprScale = clamp(Math.min(W, H) / 760, .62, 1.15);
+  for(const type in TYPES){
+    const r = TYPES[type].r * sprScale;
+    /* 3 个纹理变体: 猕猴桃绒点/柑橘油点原本每帧随机, 固化成 3 套后肉眼无法分辨,
+       但绘制成本从每帧数百次随机 + arc 降到一次 drawImage。 */
+    SPR[type] = [ renderFruitSprite(type, r, 0),
+                  renderFruitSprite(type, r, 1),
+                  renderFruitSprite(type, r, 2) ];
+    /* [OPT-F2] 切面果肉渐变也按类型缓存。
+       渐变坐标在"绘制时"才按当前变换解释, 所以以 (0,0) 为中心创建一次即可跨帧复用,
+       旧代码是每半块每帧 createRadialGradient。 */
+    const fg = ctx.createRadialGradient(0, 0, r * .05, 0, 0, r);
+    fg.addColorStop(0, '#ffffff');
+    fg.addColorStop(.28, TYPES[type].flesh);
+    fg.addColorStop(1, TYPES[type].skin);
+    FLESH[type] = fg;
+  }
+  buildDots();
+  buildBgDots();
+}
+
+/* 背景装饰圆精灵(纯色圆, 与逐帧 arc 绘制等价) */
+function buildBgDots(){
+  const hues = ['#ffd9a0','#ffb3c8','#b8f0e6','#fff2b8'];
+  for(let i=0;i<hues.length;i++){
+    const s = 128, c = makeCanvas(s, s), g = c.getContext('2d');
+    g.fillStyle = hues[i];
+    g.beginPath(); g.arc(s/2, s/2, s/2 - 1, 0, TAU); g.fill();
+    BGDOT[hues[i]] = c;
+  }
+}
+
+function renderFruitSprite(type, r, variant){
+  const s = Math.ceil(r * 2.95);                 // 预留果柄/高光溢出空间
+  const c = makeCanvas(s, s);
+  const g = c.getContext('2d');
+  g.translate(s / 2, s / 2);
+  paintFruit(g, type, r, variant);               // 复用原绘制逻辑, 仅把 ctx 参数化
+  return { c, s, r };
+}
+
+/* 粒子圆点精灵: 预渲染软边圆, 运行期 drawImage 代替 arc + fill */
+function buildDots(){
+  const cols = ['#ff4d6d','#ff8fa8','#ffa63d','#ffe066','#a5d66a','#ff7fb0',
+                '#ffb347','#ff6b3c','#fff1a8','#5a5a5a','#ffffff'];
+  for(const col of cols){
+    const s = 32, c = makeCanvas(s, s), g = c.getContext('2d');
+    const rg = g.createRadialGradient(s/2, s/2, 0, s/2, s/2, s/2);
+    rg.addColorStop(0, col); rg.addColorStop(.6, col); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = rg; g.beginPath(); g.arc(s/2, s/2, s/2, 0, TAU); g.fill();
+    DOT[col] = c;
+  }
+}
+
+/* 背景静态层(渐变底 + 木质案板)预渲染, 每帧只需一次 drawImage */
+let bgLayer = null;
+function buildBgLayer(){
+  const w = W + 80, h = H + 80;
+  bgLayer = makeCanvas(w, h);
+  const g = bgLayer.getContext('2d');
+  const lg = g.createLinearGradient(0, 40, 0, h - 40);
+  lg.addColorStop(0, '#fff4e2'); lg.addColorStop(.42, '#ffe3d0'); lg.addColorStop(1, '#ffd0c2');
+  g.fillStyle = lg; g.fillRect(0, 0, w, h);
+  const by = h - (H * .1 + 40);                  // 对应屏幕 H*0.9
+  const wg = g.createLinearGradient(0, by, 0, h);
+  wg.addColorStop(0, 'rgba(150,96,60,.16)'); wg.addColorStop(1, 'rgba(110,66,40,.34)');
+  g.fillStyle = wg; g.fillRect(0, by, w, h - by);
+}
+
+resize();                                               // 精灵/背景层依赖 W、H, 在此首次构建
+
+/* ---------------- 4/5. 生成水果 ---------------- */
+function spawnFruit(type){
+  if(type === undefined){
+    type = pick(SPAWN_POOL);
+    const bombChance = clamp(0.04 + elapsed * 0.0016, 0.04, 0.20);   // 炸弹概率随时间上升
+    if(Math.random() < bombChance) type = 'bomb';
+  }
+  const t = TYPES[type];
+  const r = t.r * sprScale;                                          // 小屏等比缩小
+  const x = rnd(r + 20, W - r - 20);
+  const y = H + r + 10;
+
+  // 由目标最高点反推初速度: v = sqrt(2·g·h)
+  const apexY = H * rnd(0.10, 0.34);
+  const rise  = Math.max(120, y - apexY);
+  const vy    = -Math.sqrt(2 * G * rise);
+  const vx    = (W/2 - x) * rnd(0.0012, 0.0030) + rnd(-1.2, 1.2);
+
+  const f = alloc('fruit', () => ({}));                              // [OPT-D] 复用对象
+  f.type = type; f.x = x; f.y = y; f.r = r; f.vx = vx; f.vy = vy;
+  f.rot = rnd(0, TAU); f.vrot = rnd(-.05, .05);
+  f.wob = rnd(0, TAU); f.wobv = rnd(.06, .13);                       // 果冻弹性相位
+  f.squash = 0; f.sliced = false; f.t = 0;
+  f.variant = irnd(0, 2);                                            // 随机纹理变体(3 选 1)
+  fruits.push(f);
+}
+
+function wave(){
+  const diff = clamp(elapsed / 90, 0, 1);                     // 0→1 难度曲线
+  const n = Math.random() < .35 + diff*.35 ? irnd(2, 4) : 1;  // 一次抛几个
+  for(let i=0;i<n;i++) setTimeout(() => { if(state === S.PLAY) spawnFruit(); }, i * rnd(90, 220));
+}
+
+/* ---------------- 6. 刀锋 ---------------- */
+/* [OPT-G] 轨迹点与顶点缓冲全部预分配。
+   旧代码每次 move 都 push 新对象, drawBlade 里再 new 出 2×N 个 [x,y] 小数组
+   —— 快速挥刀时每秒上千次分配, 直接触发 GC 卡顿。 */
+const BLADE_MAX = 30;
+const bladePts = new Array(BLADE_MAX);
+for(let i = 0; i < BLADE_MAX; i++) bladePts[i] = { x:0, y:0, t:0 };
+let bladeCount = 0;
+const LX = new Float32Array(BLADE_MAX), LY = new Float32Array(BLADE_MAX);
+const RX = new Float32Array(BLADE_MAX), RY = new Float32Array(BLADE_MAX);
+
+function bladePush(x, y){
+  if(bladeCount){                                     // 对新增线段做切割检测(支持一帧多次 move)
+    const last = bladePts[bladeCount - 1];
+    testCut(last.x, last.y, x, y);
+  }
+  if(bladeCount >= BLADE_MAX){                        // 满了整体前移一格, 丢弃最旧点
+    bladePts.copyWithin(0, 1);
+    bladeCount = BLADE_MAX - 1;
+  }
+  const p = bladePts[bladeCount++];
+  p.x = x; p.y = y; p.t = performance.now();
+}
+
+function ageBlade(now){
+  let drop = 0;
+  while(drop < bladeCount && now - bladePts[drop].t > 170) drop++;
+  if(drop){ bladePts.copyWithin(0, drop, bladeCount); bladeCount -= drop; }
+}
+
+/* [OPT-H] 先用线段 AABB 粗筛, 再算精确距离 —— 屏幕外/远处的 fruit 直接跳过 */
+function testCut(ax, ay, bx, by){
+  const n = fruits.length;
+  if(!n) return;
+  const minX = Math.min(ax, bx), maxX = Math.max(ax, bx);
+  const minY = Math.min(ay, by), maxY = Math.max(ay, by);
+  const reach = 1.06;                                  // 判定宽容度
+  for(let i = n - 1; i >= 0; i--){
+    const f = fruits[i];
+    if(f.sliced) continue;
+    const rr = f.r * reach;
+    if(f.x < minX - rr || f.x > maxX + rr || f.y < minY - rr || f.y > maxY + rr) continue;
+    if(segPointDist2(ax, ay, bx, by, f.x, f.y) <= rr * rr){
+      slice(f, Math.atan2(by - ay, bx - ax));
+      removeAt(fruits, i);                             // [OPT-C] O(1) 移除
+    }
+  }
+}
+
+/* ---------------- 切开: 生成两半 + 粒子 + 计分 ---------------- */
+function slice(f, angle){
+  const t = TYPES[f.type];
+
+  if(t.bomb){                                          // 💣 炸弹 → 直接结束
+    boom(f.x, f.y);
+    return;
+  }
+
+  f.sliced = true;
+  score += t.value;
+  blade.combo++;
+  blade.comboTimer = 26;                               // 连击窗口(帧)
+  maxCombo = Math.max(maxCombo, blade.combo);
+  hudDirty = true;
+
+  /* ================= [FEEL-1/2/3/4/5] 命中反馈总控(仅增强包) =================
+     一次切中要同时给出: 顿帧 → 慢放 → 方向性震动 → 全屏缩放冲击
+     → 白闪 → 刀锋增亮 → 粒子三层喷射 → 两半弹出 → 刀光 → 三层音效
+     关闭时走上一版的反馈参数: 仅小幅随机震动。 */
+  let power = 1;
+  if(CONFIG.enhanced){
+    power = (t.jelly ? 1.18 : 1) * (1 + Math.min(blade.combo - 1, 4) * .07);
+    hitStop     = FEEL.hitStopMs * (t.jelly ? 1.25 : 1); // 顿帧: 冻结画面, 冲击感的核心
+    slowT       = FEEL.slowMs;                           // 顿帧后接一段慢放, 让分裂看得清
+    shake       = Math.min(shake + FEEL.shake * power, 22);
+    shakeAng    = angle + Math.PI / 2;                   // 沿刀口法线方向震(不是纯随机)
+    punch       = Math.min(punch + FEEL.punch * power, .05);
+    flash       = Math.min(flash + FEEL.flash, .55);
+    blade.flash = 1;                                     // 刀锋瞬间增亮加粗
+
+    // [FEEL-5] 斩击刀光: 沿刀路炸出一条白亮线
+    const sl = alloc('slash', () => ({}));
+    sl.x = f.x; sl.y = f.y; sl.ang = angle;
+    sl.len = f.r * 3.2; sl.w = f.r * .55; sl.life = 1;
+    slashes.push(sl);
+  } else {
+    shake = Math.min(shake + (t.jelly ? 3 : 2), 9);      // ← 上一版的震动强度
+  }
+
+  // 两半沿切割线法线方向分离
+  const nx = -Math.sin(angle), ny = Math.cos(angle);
+  const sp = t.jelly ? 2.1 : 1.5;
+  for(let s = 0; s < 2; s++){
+    const side = s === 0 ? 1 : -1;
+    const h = alloc('half', () => ({}));                 // [OPT-D] 复用对象
+    h.type = f.type; h.r = f.r; h.variant = f.variant;
+    h.x = f.x + nx * side * f.r * .08;
+    h.y = f.y + ny * side * f.r * .08;
+    h.vx = f.vx * .85 + nx * side * sp + rnd(-.3, .3);
+    h.vy = f.vy * .72 + ny * side * sp - (t.jelly ? .6 : .2);
+    h.rot = angle; h.vrot = f.vrot + side * rnd(.01, .05);
+    h.cut = angle; h.side = side;
+    h.wob = f.wob; h.wobv = f.wobv * 2.2;                // 果冻块切开后抖得更厉害
+    h.squash = t.jelly ? .55 : .18; h.squashV = 0;
+    h.pop = CONFIG.enhanced ? FEEL.pop * power : 0; h.popV = 0;  // 弹出缩放(仅增强包)
+    h.life = 1; h.jelly = !!t.jelly;
+    halves.push(h);
+  }
+
+  /* [FEEL-3] 汁液三层喷射: 果肉块(大、带速度拉伸) + 主汁滴 + 细雾,
+     方向沿刀口法线双向炸开 —— 仅增强包; 关闭时用上一版的单层整圆散开。 */
+  const mul = PERF.partMul;
+  if(CONFIG.enhanced){
+    const nBig  = Math.round(7 * mul);
+    const nMain = Math.round((t.jelly ? 17 : 21) * mul);
+    const nMist = Math.round(9 * mul);
+    for(let i=0;i<nBig;i++)  emitPart(f.x, f.y, f.r, angle, t.juice, rnd(4.6, 9.0), rnd(4.5, 8.5), 1, .20);
+    for(let i=0;i<nMain;i++) emitPart(f.x, f.y, f.r, angle, t.juice, rnd(1.6, 5.8), rnd(2.4, 6.6), 0, .22);
+    for(let i=0;i<nMist;i++) emitPart(f.x, f.y, f.r, angle, t.juice, rnd(.7, 2.8), rnd(1.2, 3.4), 0, .10);
+  } else {
+    const n = Math.round((t.jelly ? 16 : 22) * mul);
+    for(let i=0;i<n;i++){
+      const a = angle + rnd(-1.1, 1.1) + (Math.random() < .5 ? 0 : Math.PI);
+      const s = rnd(1.4, 5.4);
+      const p = alloc('part', () => ({}));
+      p.x = f.x; p.y = f.y; p.vx = Math.cos(a)*s; p.vy = Math.sin(a)*s - 1;
+      p.r = rnd(2.2, 6.4); p.c = t.juice; p.life = 1; p.g = .22; p.stretch = 0;
+      parts.push(p);
+    }
+  }
+
+  const rg = alloc('ring', () => ({}));
+  rg.x = f.x; rg.y = f.y; rg.r = f.r * .5; rg.max = f.r * 2.4; rg.c = t.juice; rg.life = 1;
+  rings.push(rg);
+
+  const tx = alloc('text', () => ({}));
+  tx.x = f.x; tx.y = f.y - f.r * .4; tx.txt = '+' + t.value; tx.life = 1; tx.c = '#fff'; tx.pop = 1;
+  texts.push(tx);
+
+  // [FEEL-6] 增强包 = 三层叠音; 关闭 = 上一版的单层音效
+  if(CONFIG.enhanced) t.jelly ? Sound.jelly() : Sound.slice();
+  else                t.jelly ? Sound.jellyClassic() : Sound.sliceClassic();
+}
+
+/* 粒子发射(全部走对象池) */
+function emitPart(x, y, fr, ang, color, spd, rad, stretch, grav){
+  const p = alloc('part', () => ({}));
+  const perp = ang + Math.PI / 2 + (Math.random() < .5 ? 0 : Math.PI);
+  const a = perp + rnd(-.85, .85);
+  p.x = x + Math.cos(a) * fr * .3;
+  p.y = y + Math.sin(a) * fr * .3;
+  p.vx = Math.cos(a) * spd + Math.cos(ang) * rnd(-1, 1);
+  p.vy = Math.sin(a) * spd - rnd(.6, 2.2);
+  p.r = rad; p.c = color; p.life = 1; p.g = grav; p.stretch = stretch;
+  parts.push(p);
+}
+
+function boom(x, y){
+  Sound.boom();
+  flash = 1;
+  if(CONFIG.enhanced){ punch = .06; hitStop = 90; shake = 26; } else shake = 22;
+  const cols = ['#ffb347','#ff6b3c','#fff1a8','#5a5a5a'];
+  const n = Math.round(64 * PERF.partMul);
+  for(let i=0;i<n;i++){
+    const a = rnd(0, TAU), s = rnd(2, 12);
+    const p = alloc('part', () => ({}));                // [OPT-D] 复用对象
+    p.x = x; p.y = y; p.vx = Math.cos(a)*s; p.vy = Math.sin(a)*s;
+    p.r = rnd(2, 7); p.c = cols[i & 3]; p.life = 1; p.g = .14; p.stretch = 0;
+    parts.push(p);
+  }
+  const rg = alloc('ring', () => ({}));
+  rg.x = x; rg.y = y; rg.r = 10; rg.max = Math.max(W, H) * .7; rg.c = '#ffb347'; rg.life = 1;
+  rings.push(rg);
+  gameOver();
+}
+
+function missFruit(f){
+  if(TYPES[f.type].bomb) return;                        // 炸弹漏掉不扣分
+  lives--;
+  Sound.miss();
+  renderHearts();
+  if(lives <= 0) gameOver();
+}
+
+/* ---------------- 7/8. 更新 ---------------- */
+function update(k){                                     // k = 帧步长(1 ≈ 16.7ms)
+  const live = (state === S.PLAY);                      // 结束后仍推进特效, 只停玩法逻辑
+  elapsed += k / 60;
+  /* 增强包: 与强度成正比的衰减(大震快速收敛, 短促有力);
+     上一版: 固定 0.8/帧 的线性衰减。 */
+  if(shake > 0) shake = CONFIG.enhanced
+    ? Math.max(0, shake - (0.9 + shake * .17) * k)
+    : Math.max(0, shake - .8 * k);
+  if(flash > 0) flash = Math.max(0, flash - .055 * k);
+
+  /* 发射波次 */
+  spawnTimer -= k;
+  if(live && spawnTimer <= 0){
+    wave();
+    const diff = clamp(elapsed / 90, 0, 1);
+    spawnTimer = rnd(95, 165) - diff * 45;              // 越来越快
+  }
+
+  /* 完整水果: 抛物线运动 */
+  for(let i = fruits.length - 1; i >= 0; i--){
+    const f = fruits[i], t = TYPES[f.type];
+    f.vy += G * k;
+    f.x  += f.vx * k;
+    f.y  += f.vy * k;
+    f.rot += f.vrot * k;
+    f.t  += k;
+    if(t.jelly){                                        // 果冻持续呼吸/挤压
+      f.wob += f.wobv * k;
+      f.squash = Math.sin(f.wob) * .12;
+    }
+    if(f.y - f.r > H + 40){
+      if(live) missFruit(f);
+      removeAt(fruits, i); release('fruit', f);         // [OPT-C/D] O(1) 移除 + 归还池
+    }
+  }
+
+  /* 半块: 保留惯性 + 旋转 + [FEEL-4] 弹出缩放阻尼弹簧 */
+  for(let i = halves.length - 1; i >= 0; i--){
+    const h = halves[i];
+    h.vy += G * k;
+    h.x += h.vx * k; h.y += h.vy * k;
+    h.rot += h.vrot * k;
+    h.life -= .009 * k;
+    h.popV += (-h.pop * .34 - h.popV * .20) * k;        // 弹出后回弹(会过冲成压扁)
+    h.pop  += h.popV * k;
+    if(h.jelly){                                        // 阻尼弹簧回弹
+      h.wob += h.wobv * k;
+      h.squashV += (-h.squash * .16 - h.squashV * .12) * k;
+      h.squash += h.squashV * k;
+    } else {
+      h.squash *= (1 - .05 * k);
+    }
+    if(h.y - h.r > H + 60 || h.life <= 0){
+      removeAt(halves, i); release('half', h);
+    }
+  }
+
+  /* 粒子 */
+  for(let i = parts.length - 1; i >= 0; i--){
+    const p = parts[i];
+    p.vy += (p.g || .22) * k;
+    p.x += p.vx * k; p.y += p.vy * k;
+    p.vx *= (1 - .012 * k);
+    p.life -= .016 * k;
+    if(p.life <= 0){ removeAt(parts, i); release('part', p); }
+  }
+  for(let i = rings.length - 1; i >= 0; i--){
+    const r = rings[i];
+    r.r += (r.max - r.r) * .12 * k; r.life -= .045 * k;
+    if(r.life <= 0){ removeAt(rings, i); release('ring', r); }
+  }
+  for(let i = texts.length - 1; i >= 0; i--){
+    const x = texts[i];
+    x.y -= 1.05 * k; x.life -= .017 * k;
+    if(x.pop > 0) x.pop = Math.max(0, x.pop - .06 * k);
+    if(x.life <= 0){ removeAt(texts, i); release('text', x); }
+  }
+  for(let i = slashes.length - 1; i >= 0; i--){
+    const s = slashes[i];
+    s.life -= .07 * k;
+    if(s.life <= 0){ removeAt(slashes, i); release('slash', s); }
+  }
+
+  /* 打击感衰减 */
+  if(punch > 0)      punch = Math.max(0, punch - .0022 * k);
+  if(blade.flash > 0) blade.flash = Math.max(0, blade.flash - .09 * k);
+
+  /* 刀锋拖尾老化 */
+  ageBlade(performance.now());
+
+  /* 连击结算 */
+  if(blade.comboTimer > 0){
+    blade.comboTimer -= k;
+    if(blade.comboTimer <= 0){
+      if(blade.combo >= 3){
+        const bonus = blade.combo * 2;
+        score += bonus;
+        Sound.combo(blade.combo);
+        showCombo(blade.combo, bonus);
+        hudDirty = true;
+      }
+      blade.combo = 0;
+    }
+  }
+}
+
+/* ---------------- 绘制 ----------------
+   [OPT-F] 以下只在 buildSprites() 时执行(每种水果 2 次), 运行期不再调用。
+   形参 g 为离屏 ctx; 缩放/透明度交由运行期的 drawImage 完成。 */
+function paintFruit(g, type, r, variant){
+  const t = TYPES[type];
+
+  if(t.bomb){
+    g.fillStyle = '#1c1c22';
+    g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+    const gg = g.createRadialGradient(-r*.35, -r*.4, r*.05, 0, 0, r*1.2);
+    gg.addColorStop(0, '#7b7b8c'); gg.addColorStop(.55, '#3a3a46'); gg.addColorStop(1, '#15151b');
+    g.fillStyle = gg;
+    g.beginPath(); g.arc(0, 0, r*.96, 0, TAU); g.fill();
+    g.strokeStyle = '#a0a0b0'; g.lineWidth = r*.13; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(r*.12, -r*.9); g.quadraticCurveTo(r*.62, -r*1.28, r*.5, -r*1.62); g.stroke();
+    g.fillStyle = '#ffcf5c';
+    g.beginPath(); g.arc(r*.5, -r*1.66, r*.17, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.9)';
+    g.beginPath(); g.arc(r*.5, -r*1.66, r*.07, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.28)';
+    g.beginPath(); g.ellipse(-r*.34, -r*.38, r*.24, r*.14, -.5, 0, TAU); g.fill();
+    return;
+  }
+
+  // 主体球体
+  const g0 = g.createRadialGradient(-r*.32, -r*.38, r*.08, 0, 0, r*1.18);
+  g0.addColorStop(0, t.hi); g0.addColorStop(1, t.skin);
+  g.fillStyle = g0;
+  g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+
+  g.save();
+  g.beginPath(); g.arc(0, 0, r, 0, TAU); g.clip();
+
+  if(t.stripe){                                          // 西瓜纹
+    g.strokeStyle = 'rgba(12,60,25,.42)'; g.lineWidth = r*.13;
+    for(let i=0;i<6;i++){
+      const a = i / 6 * TAU;
+      g.beginPath();
+      g.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+      g.quadraticCurveTo(0, 0, -Math.cos(a)*r, -Math.sin(a)*r);
+      g.stroke();
+    }
+  }
+  if(t.scale){                                           // 火龙果鳞片
+    g.fillStyle = 'rgba(120,200,120,.55)';
+    for(let i=0;i<7;i++){
+      const a = i/7*TAU + .4, rr = r*.62;
+      g.beginPath();
+      g.ellipse(Math.cos(a)*rr, Math.sin(a)*rr, r*.3, r*.17, a, 0, TAU);
+      g.fill();
+    }
+  }
+  if(t.fuzzy){                                           // 猕猴桃绒点(随机一次即固化)
+    g.fillStyle = 'rgba(255,255,255,.16)';
+    for(let i=0;i<40;i++){
+      const a = Math.random()*TAU, rr = Math.sqrt(Math.random())*r;
+      g.beginPath(); g.arc(Math.cos(a)*rr, Math.sin(a)*rr, r*.035, 0, TAU); g.fill();
+    }
+  }
+  if(t.segments){                                        // 柑橘表皮油点
+    g.fillStyle = 'rgba(0,0,0,.07)';
+    for(let i=0;i<34;i++){
+      const a = Math.random()*TAU, rr = Math.sqrt(Math.random())*r*.95;
+      g.beginPath(); g.arc(Math.cos(a)*rr, Math.sin(a)*rr, r*.04, 0, TAU); g.fill();
+    }
+  }
+  g.restore();
+
+  // 高光
+  g.fillStyle = 'rgba(255,255,255,.34)';
+  g.beginPath(); g.ellipse(-r*.34, -r*.4, r*.27, r*.15, -.5, 0, TAU); g.fill();
+
+  if(t.jelly){                                           // 果冻: 透明感 + 内部亮核
+    g.fillStyle = 'rgba(255,255,255,.22)';
+    g.beginPath(); g.arc(0, 0, r*.78, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = r*.07;
+    g.beginPath(); g.arc(0, 0, r*.74, 0, TAU); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.75)';
+    g.beginPath(); g.ellipse(-r*.3, -r*.34, r*.13, r*.08, -.5, 0, TAU); g.fill();
+  }
+
+  // 果实顶部小柄
+  if(!t.jelly && !t.bomb){
+    g.strokeStyle = 'rgba(90,60,40,.75)'; g.lineWidth = Math.max(2, r*.09); g.lineCap = 'round';
+    g.beginPath(); g.moveTo(0, -r*.96); g.quadraticCurveTo(r*.1, -r*1.16, r*.26, -r*1.14); g.stroke();
+  }
+}
+
+/* classic 路径(CONFIG.sprites = false): 逐帧把纹理直接画到主 ctx。
+   与上一版完全一致 —— 每帧重建渐变、随机散点、独立 clip。 */
+function drawBody(f, alpha){
+  ctx.globalAlpha = alpha == null ? 1 : alpha;
+  ctx.save();
+  if(f.squash) ctx.scale(1 + f.squash, 1 - f.squash);    // 果冻挤压(体积守恒)
+  paintFruit(ctx, f.type, f.r, 0);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/* 运行期绘制完整水果: 只有一次 drawImage */
+function drawFruitSprite(x, y, r, rot, squash, type, variant){
+  const sp = SPR[type][variant];
+  const k = r / sp.r, s = sp.s * k, o = -s * .5;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  if(squash) ctx.scale(1 + squash, 1 - squash);          // 果冻挤压(体积守恒)
+  ctx.drawImage(sp.c, o, o, s, s);
+  ctx.restore();
+}
+
+/* 画半个水果: 用半平面裁剪 + 切口果肉椭圆 */
+function drawHalf(h){
+  const t = TYPES[h.type], r = h.r;
+  ctx.save();
+  ctx.translate(h.x, h.y);
+  ctx.globalAlpha = clamp(h.life, 0, 1);
+
+  const pop = 1 + h.pop;                                 // [FEEL-4] 弹出缩放(classic 恒为 1)
+  const sq  = h.jelly ? h.squash : 0;
+
+  // —— 果皮部分(裁剪出一半) ——
+  ctx.save();
+  ctx.rotate(h.cut);
+  ctx.beginPath();
+  ctx.rect(-r*3, h.side > 0 ? 0 : -r*3, r*6, r*3);       // 保留切割线一侧
+  ctx.clip();
+  ctx.rotate(-h.cut + h.rot);
+  if(CONFIG.sprites){
+    const sp = SPR[h.type][h.variant];
+    const k  = r / sp.r, sS = sp.s * k, o = -sS * .5;
+    ctx.scale(pop * (1 + sq), pop * (1 - sq));
+    ctx.drawImage(sp.c, o, o, sS, sS);                   // 纹理不再逐帧重画
+  } else {
+    ctx.save();
+    if(pop !== 1) ctx.scale(pop, pop);
+    if(sq) ctx.scale(1 + sq, 1 - sq);
+    drawBody({ type:h.type, r:r, squash:sq, jelly:h.jelly });   // ← 上一版逐帧重绘
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // —— 切口: 果肉椭圆 ——
+  ctx.save();
+  ctx.rotate(h.cut);
+  ctx.scale(pop, pop);
+  ctx.fillStyle = FLESH[h.type];                         // [OPT-F2] 复用缓存渐变
+  ctx.beginPath(); ctx.ellipse(0, 0, r*.96, r*.2, 0, 0, TAU); ctx.fill();
+
+  // 切面种子
+  if(t.seeds){
+    ctx.fillStyle = 'rgba(40,30,30,.72)';
+    const n = Math.min(t.seeds, 12);
+    for(let i=0;i<n;i++){
+      const u = (i + .5) / n * 2 - 1;                    // -1..1 沿切割线分布
+      const px = u * r * .74;
+      const py = Math.sin(u * 1.7 + h.wob) * r * .07;
+      const rr = r * (h.type === 'dragon' ? .028 : .052);
+      ctx.beginPath();
+      ctx.ellipse(px, py, rr * 1.5, rr, 0, 0, TAU);
+      ctx.fill();
+    }
+  }
+  // 切口高光边
+  ctx.strokeStyle = 'rgba(255,255,255,.65)';
+  ctx.lineWidth = Math.max(1.5, r*.05);
+  ctx.beginPath(); ctx.ellipse(0, 0, r*.96, r*.2, 0, 0, TAU); ctx.stroke();
+  ctx.restore();
+
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawBlade(){
+  const n = bladeCount;
+  if(n < 2) return;
+  ctx.save();
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  /* [OPT-G] 顶点写入预分配的 Float32Array, 不再每帧 new 出 2×N 个小数组 */
+  const wMax = 10 + blade.flash * 8;                     // [FEEL-5] 命中瞬间刀锋加粗
+  for(let i=0;i<n;i++){
+    const a = bladePts[i > 0 ? i-1 : 0], b = bladePts[i < n-1 ? i+1 : n-1];
+    let dx = b.x - a.x, dy = b.y - a.y;
+    const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+    const w = 1 + wMax * (i / (n - 1));                  // 尾部细、刀锋粗
+    LX[i] = bladePts[i].x - dy * w; LY[i] = bladePts[i].y + dx * w;
+    RX[i] = bladePts[i].x + dy * w; RY[i] = bladePts[i].y - dx * w;
+  }
+  ctx.beginPath();
+  ctx.moveTo(LX[0], LY[0]);
+  for(let i=1;i<n;i++) ctx.lineTo(LX[i], LY[i]);
+  for(let i=n-1;i>=0;i--) ctx.lineTo(RX[i], RY[i]);
+  ctx.closePath();
+
+  if(PERF.glow){                                         // [OPT-A] 低画质档关闭昂贵的阴影
+    ctx.shadowColor = 'rgba(255,255,255,.9)';
+    ctx.shadowBlur  = 14 + blade.flash * 14;
+  }
+  const g = ctx.createLinearGradient(bladePts[0].x, bladePts[0].y, bladePts[n-1].x, bladePts[n-1].y);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(.55, 'rgba(255,255,255,.55)');
+  g.addColorStop(1, blade.flash > .05 ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,.95)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // 刀锋亮芯
+  ctx.beginPath();
+  ctx.moveTo(bladePts[0].x, bladePts[0].y);
+  for(let i=1;i<n;i++) ctx.lineTo(bladePts[i].x, bladePts[i].y);
+  ctx.strokeStyle = 'rgba(255,255,255,.95)';
+  ctx.lineWidth = 2 + blade.flash * 2.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* [FEEL-5] 斩击刀光: 命中瞬间沿刀路炸出的一条白亮线, 4~5 帧内衰减消失 */
+function drawSlashes(){
+  if(!slashes.length) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for(let i=0;i<slashes.length;i++){
+    const s = slashes[i], a = clamp(s.life, 0, 1);
+    const c = Math.cos(s.ang), sn = Math.sin(s.ang);
+    const L = s.len * (.45 + (1 - a) * .75);             // 向外抽长
+    ctx.globalAlpha = a * a;
+    ctx.strokeStyle = 'rgba(255,255,255,.95)';
+    ctx.lineWidth = s.w * a;
+    ctx.beginPath();
+    ctx.moveTo(s.x - c * L, s.y - sn * L);
+    ctx.lineTo(s.x + c * L, s.y + sn * L);
+    ctx.stroke();
+    ctx.globalAlpha = a * a * .5;                        // 外层柔光
+    ctx.strokeStyle = 'rgba(255,225,235,.9)';
+    ctx.lineWidth = s.w * a * 2.4;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function drawBackground(){
+  /* [OPT-4] 静态层(渐变底 + 案板)已预渲染, 每帧一次 drawImage。
+     偏移 -40 是为了在震动/缩放时不露底。 */
+  ctx.drawImage(bgLayer, -40, -40);
+
+  // 漂浮装饰圆: [OPT-K] 改为纯色圆点精灵, 省掉每帧 16 次 arc + fillStyle 切换
+  for(let i=0;i<bg.length;i++){
+    const b = bg[i];
+    b.y -= b.v * .016;
+    if(b.y < -.2) b.y = 1.2;
+    ctx.globalAlpha = b.a;
+    ctx.drawImage(BGDOT[b.hue], b.x * W - b.r, b.y * H - b.r, b.r * 2, b.r * 2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* 浮动文字的字号只有两档, 缓存 font 字符串避免每帧拼模板字符串 */
+const FONT_SM = '900 20px system-ui, "PingFang SC", sans-serif';
+const FONT_LG = '900 27px system-ui, "PingFang SC", sans-serif';
+
+function draw(){
+  ctx.save();
+
+  /* 屏幕变换:
+     增强包 = 以中心做微量缩放冲击 + 沿刀口法线的方向性震动;
+     上一版 = 纯随机平移抖动。 */
+  if(CONFIG.enhanced){
+    const sx = shake > .3 ? Math.cos(shakeAng) * shake * .55 + rnd(-shake, shake) * .45 : 0;
+    const sy = shake > .3 ? Math.sin(shakeAng) * shake * .55 + rnd(-shake, shake) * .45 : 0;
+    const z  = 1 + punch;
+    ctx.translate(W * .5 + sx, H * .5 + sy);
+    ctx.scale(z, z);
+    ctx.translate(-W * .5, -H * .5);
+  } else if(shake > 0){
+    ctx.translate(rnd(-shake, shake), rnd(-shake, shake));
+  }
+
+  drawBackground();
+
+  for(let i=0;i<halves.length;i++) drawHalf(halves[i]);
+
+  for(let i=0;i<fruits.length;i++){
+    const f = fruits[i];
+    if(CONFIG.sprites) drawFruitSprite(f.x, f.y, f.r, f.rot, f.squash, f.type, f.variant);
+    else {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rot);
+      drawBody(f);
+      ctx.restore();
+    }
+  }
+
+  // 果汁粒子
+  if(CONFIG.enhanced){
+    /* [FEEL-3] 预渲染圆点 drawImage + 大滴沿速度方向拉伸成条 */
+    for(let i=0;i<parts.length;i++){
+      const p = parts[i], a = clamp(p.life, 0, 1);
+      const img = DOT[p.c] || DOT['#ffffff'];
+      const d = p.r * (.4 + a * .6) * 2;
+      ctx.globalAlpha = a;
+      if(p.stretch){
+        const vL = Math.hypot(p.vx, p.vy) || 1;
+        const ex = p.vx / vL * p.r * 1.9, ey = p.vy / vL * p.r * 1.9;
+        ctx.strokeStyle = p.c; ctx.lineWidth = d * .8; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - ex, p.y - ey); ctx.stroke();
+      }
+      ctx.drawImage(img, p.x - d * .5, p.y - d * .5, d, d);
+    }
+  } else {
+    /* 上一版: arc + fill, 实心圆点 */
+    for(let i=0;i<parts.length;i++){
+      const p = parts[i], a = clamp(p.life, 0, 1);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (.4 + a * .6), 0, TAU); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // 冲击波
+  for(let i=0;i<rings.length;i++){
+    const r = rings[i];
+    ctx.globalAlpha = clamp(r.life, 0, 1) * .5;
+    ctx.strokeStyle = r.c; ctx.lineWidth = 3 * r.life + 1;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, TAU); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  drawSlashes();
+  drawBlade();
+
+  // 浮动文字(带弹出缩放)
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(let i=0;i<texts.length;i++){
+    const x = texts[i];
+    const sc = 1 + (x.pop || 0) * .6;
+    ctx.globalAlpha = clamp(x.life, 0, 1);
+    ctx.save();
+    ctx.translate(x.x, x.y); ctx.scale(sc, sc);
+    ctx.font = sc > 1.1 ? FONT_LG : FONT_SM;
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(120,60,90,.35)';
+    ctx.strokeText(x.txt, 0, 0);
+    ctx.fillStyle = x.c; ctx.fillText(x.txt, 0, 0);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  if(flash > 0){
+    ctx.fillStyle = 'rgba(255,240,210,' + (flash * .85) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+/* ---------------- 主循环(固定步长累加器) ---------------- */
+let lastT = performance.now(), acc = 0;
+let fpsAcc = 0, fpsN = 0, slowStreak = 0, goodStreak = 0;
+const STEP = 1000 / 60;
+
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt = now - lastT; lastT = now;
+  if(dt > 250) dt = STEP;                                // 切后台回来不要爆帧
+
+  /* [OPT-I] 页面不可见 / 暂停时完全停摆 —— 画面静止, 不必空转烧 CPU */
+  if(document.hidden || state === S.PAUSE) return;
+
+  /* [FEEL-1] 命中顿帧(仅增强包): 冻结 update 与 draw。
+     画面定格 50~80ms 正是"duang"的冲击来源, 顺带还省下这几帧的开销。 */
+  if(CONFIG.enhanced && hitStop > 0){
+    hitStop -= dt;
+    if(hitStop > 0) return;
+    dt = -hitStop; hitStop = 0;                          // 余下的时间继续推进
+  }
+
+  /* [FEEL-2] 顿帧之后接一段慢放并回弹到正常速度(仅增强包) */
+  if(CONFIG.enhanced && slowT > 0){
+    slowT -= dt;
+    const u = 1 - Math.max(0, slowT) / FEEL.slowMs;      // 0 → 1
+    timeScale = FEEL.slowScale + (1 - FEEL.slowScale) * u * u;
+  } else timeScale = 1;
+
+  acc += dt * timeScale;
+  let guard = 0;
+  while(acc >= STEP && guard++ < 3){
+    if(state === S.PLAY || state === S.OVER) update(1);  // 结束后特效继续演算
+    acc -= STEP;
+  }
+  if(acc > STEP * 3) acc = 0;                            // 追不上就丢弃, 防止死亡螺旋
+
+  if(hudDirty){ hudDirty = false; updateHUD(); }         // [OPT-E] 每帧最多一次 DOM 写入
+  draw();
+
+  /* [OPT-J] 帧率监测 + 滞回式自适应画质(每 45 帧一个观测窗口) */
+  fpsAcc += dt; fpsN++;
+  if(fpsN >= 45){
+    const avg = fpsAcc / fpsN; fpsAcc = 0; fpsN = 0;
+    curFps = 1000 / avg;
+    if(CONFIG.autoQuality){
+      if(avg > 20.5){                                    // 掉帧 → 降档(连续 2 次确认)
+        goodStreak = 0;
+        if(++slowStreak >= 2 && PERF.level > 0){ setLevel(PERF.level - 1); slowStreak = 0; }
+      } else if(avg < 13.5){                             // 富余 → 升档(连续 4 次确认)
+        slowStreak = 0;
+        if(++goodStreak >= 4 && PERF.level < 2){ setLevel(PERF.level + 1); goodStreak = 0; }
+      } else { slowStreak = 0; goodStreak = 0; }
+    }
+    if(CONFIG.fps) updateFpsPill();                      // 4 次/秒的 DOM 更新, 不影响帧率
+  }
+}
+requestAnimationFrame(loop);
+
+/* ---------------- 9. HUD / 状态机 ---------------- */
+const $ = id => document.getElementById(id);
+const elScore = $('score'), elBest = $('best'), elHearts = $('hearts'), elCombo = $('combo');
+const overlay = $('overlay');
+const panels = { start:$('panelStart'), pause:$('panelPause'), over:$('panelOver') };
+
+function renderHearts(){
+  elHearts.innerHTML = '';
+  for(let i=0;i<3;i++){
+    const d = document.createElement('div');
+    d.className = 'heart' + (i < lives ? '' : ' lost');
+    elHearts.appendChild(d);
+  }
+}
+function updateHUD(){
+  elScore.textContent = score;
+  elBest.textContent = '最佳 ' + Math.max(best, score);
+}
+
+/* ---------------- 开关系统 ----------------
+   任何带 data-cfg="<键名>" 的 checkbox 都会自动绑定到 CONFIG 对应项。 */
+const elFpsPill = $('fpsPill'), elFpsVal = $('fpsVal'), elFpsLv = $('fpsLv'),
+      elFpsEnt = $('fpsEnt'), elBadge = $('badgeEnh');
+
+function syncSwitches(){
+  const boxes = document.querySelectorAll('[data-cfg]');
+  for(let i=0;i<boxes.length;i++) boxes[i].checked = !!CONFIG[boxes[i].getAttribute('data-cfg')];
+  elFpsPill.classList.toggle('hidden', !CONFIG.fps);
+  elBadge.classList.toggle('hidden', !CONFIG.enhanced);
+}
+function applyConfig(){ syncSwitches(); saveConfig(); }
+document.addEventListener('change', e => {
+  const key = e.target && e.target.getAttribute && e.target.getAttribute('data-cfg');
+  if(!key) return;
+  CONFIG[key] = e.target.checked;
+  applyConfig();
+  Sound.init(); Sound.ui();
+});
+
+function updateFpsPill(){
+  elFpsVal.textContent = Math.round(curFps);
+  elFpsLv.textContent  = 'L' + PERF.level;
+  elFpsEnt.textContent = fruits.length + halves.length + parts.length;
+}
+
+/* 运行时 API: window.MJK.set({ enhanced:true, fps:true }) —— 也可在控制台用 */
+window.MJK = {
+  config: CONFIG,
+  perf: PERF,
+  set(o){ for(const k in o) if(k in CONFIG) CONFIG[k] = !!o[k]; applyConfig(); return this.get(); },
+  get(){ return { enhanced:CONFIG.enhanced, sprites:CONFIG.sprites,
+                  autoQuality:CONFIG.autoQuality, fps:CONFIG.fps }; },
+  stats(){ return { fps:Math.round(curFps), level:PERF.level, dpr:DPR,
+                    fruits:fruits.length, halves:halves.length, parts:parts.length }; }
+};
+function showCombo(n, bonus){
+  elCombo.textContent = `COMBO ×${n}  +${bonus}`;
+  elCombo.classList.add('show');
+  clearTimeout(showCombo._t);
+  showCombo._t = setTimeout(() => elCombo.classList.remove('show'), 900);
+}
+function showPanel(name){
+  for(const k in panels) panels[k].classList.toggle('hidden', k !== name);
+  overlay.classList.add('show');
+}
+function hidePanels(){
+  for(const k in panels) panels[k].classList.add('hidden');
+  overlay.classList.remove('show');
+}
+
+/* 清场: 所有实体归还对象池后再清空数组, 不丢弃已分配的对象 */
+function clearEntities(){
+  const lists = [['fruit',fruits],['half',halves],['part',parts],
+                 ['ring',rings],['text',texts],['slash',slashes]];
+  for(let i=0;i<lists.length;i++){
+    const kind = lists[i][0], arr = lists[i][1];
+    for(let j=0;j<arr.length;j++) release(kind, arr[j]);
+    arr.length = 0;
+  }
+}
+
+function startGame(){
+  Sound.init(); Sound.ui();
+  clearEntities();
+  bladeCount = 0; blade.combo = 0; blade.comboTimer = 0; blade.flash = 0;
+  score = 0; lives = 3; elapsed = 0; spawnTimer = 40; maxCombo = 0;
+  shake = 0; flash = 0; punch = 0;
+  hitStop = 0; slowT = 0; timeScale = 1; acc = 0;        // 打击感状态复位
+  state = S.PLAY;
+  renderHearts(); updateHUD(); hidePanels();
+}
+function gameOver(){
+  if(state === S.OVER) return;
+  state = S.OVER;
+  if(score > best){
+    best = score;
+    try{ localStorage.setItem('mjk_best', String(best)); }catch(e){}
+  }
+  $('fScore').textContent = score;
+  $('fBest').textContent  = best;
+  $('fCombo').textContent = maxCombo;
+  $('overSub').textContent = score >= best && score > 0 ? '新纪录！这刀够快 🏆' : '再来一次？';
+  setTimeout(() => showPanel('over'), 620);
+}
+function togglePause(){
+  if(state === S.PLAY){ state = S.PAUSE; showPanel('pause'); Sound.ui(); }
+  else if(state === S.PAUSE){ state = S.PLAY; hidePanels(); Sound.ui(); }
+}
+
+$('btnStart').onclick  = startGame;
+$('btnRetry').onclick  = startGame;
+$('btnResume').onclick = togglePause;
+$('btnPause').onclick  = togglePause;
+$('btnSound').onclick  = e => {
+  Sound.on = !Sound.on;
+  e.currentTarget.textContent = Sound.on ? '🔊' : '🔇';
+  if(Sound.on){ Sound.init(); Sound.ui(); }
+};
+
+/* ---------------- 输入 ---------------- */
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  const p = e.touches ? e.touches[0] : e;
+  return { x: p.clientX - r.left, y: p.clientY - r.top };
+}
+function down(e){
+  if(state !== S.PLAY) return;
+  e.preventDefault();
+  blade.on = true; bladeCount = 0; blade.combo = 0;
+  const p = pos(e);
+  bladePts[0].x = p.x; bladePts[0].y = p.y; bladePts[0].t = performance.now();
+  bladeCount = 1;
+}
+function move(e){
+  if(state !== S.PLAY || !blade.on) return;
+  e.preventDefault();
+  const p = pos(e);
+  bladePush(p.x, p.y);
+}
+function up(){ blade.on = false; }
+
+cv.addEventListener('mousedown', down);
+window.addEventListener('mousemove', move);
+window.addEventListener('mouseup', up);
+cv.addEventListener('touchstart', down, { passive:false });
+cv.addEventListener('touchmove',  move, { passive:false });
+window.addEventListener('touchend', up);
+window.addEventListener('touchcancel', up);
+
+window.addEventListener('keydown', e => {
+  if(e.code === 'Space'){ e.preventDefault(); if(state === S.MENU) startGame(); else togglePause(); }
+  if(e.code === 'Escape' && state === S.PAUSE) togglePause();
+});
+window.addEventListener('blur', () => { if(state === S.PLAY) togglePause(); });
+
+/* 初始界面也来点水果做装饰 */
+renderHearts(); updateHUD(); applyConfig();
+(function demoLoop(){
+  if(state === S.MENU){
+    if(fruits.length < 3 && Math.random() < .02) spawnFruit(pick(SPAWN_POOL));
+    for(let i = fruits.length - 1; i >= 0; i--){
+      const f = fruits[i];
+      f.vy += G; f.x += f.vx; f.y += f.vy; f.rot += f.vrot;
+      if(TYPES[f.type].jelly){ f.wob += f.wobv; f.squash = Math.sin(f.wob)*.12; }
+      if(f.y - f.r > H + 40){ removeAt(fruits, i); release('fruit', f); }
+    }
+  }
+  requestAnimationFrame(demoLoop);
+})();
+</script>
+</body>
+</html>
